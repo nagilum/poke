@@ -1,10 +1,9 @@
-﻿using Poke.Core;
-using Poke.Exceptions;
+﻿using Poke.Exceptions;
 using Poke.Models;
 using Poke.Statics;
 using System.Text.Json;
 
-namespace Poke;
+namespace Poke.Core;
 
 internal static class Program
 {
@@ -14,7 +13,7 @@ internal static class Program
     public const string AppVersion = "Poke v0.1-beta";
 
     /// <summary>
-    /// Default user-agent.
+    /// Fallback user-agent.
     /// </summary>
     public const string AppUserAgent = "Poke/0.1";
 

@@ -1,26 +1,40 @@
 ﻿using Microsoft.Playwright;
 using Poke.Models;
 using Poke.Statics;
-using System.Text.Json;
 
 namespace Poke.Core;
 
 internal class Scanner
 {
     /// <summary>
-    /// Config.
-    /// </summary>
-    private Config Config { get; set; }
-
-    /// <summary>
     /// How long the scan took.
     /// </summary>
-    private TimeSpan? Duration { get; set; }
+    public TimeSpan? Duration { get; set; }
 
     /// <summary>
     /// When the scan ended.
     /// </summary>
-    private DateTimeOffset? Ended { get; set; }
+    public DateTimeOffset? Ended { get; set; }
+
+    /// <summary>
+    /// Whether to keep processing the queue.
+    /// </summary>
+    public bool ProcessQueue { get; set; } = true;
+
+    /// <summary>
+    /// Queue items.
+    /// </summary>
+    public List<QueueItem> Queue { get; set; } = new();
+
+    /// <summary>
+    /// When the scan started.
+    /// </summary>
+    public DateTimeOffset? Started { get; set; }
+
+    /// <summary>
+    /// Config.
+    /// </summary>
+    private Config Config { get; set; }
 
     /// <summary>
     /// HTTP client for external and assets.
@@ -38,24 +52,9 @@ internal class Scanner
     private IPage Page { get; set; } = null!;
 
     /// <summary>
-    /// Whether to keep processing the queue.
-    /// </summary>
-    private bool ProcessQueue { get; set; } = true;
-
-    /// <summary>
-    /// Queue items.
-    /// </summary>
-    private List<QueueItem> Queue { get; set; } = new();
-
-    /// <summary>
     /// Report path.
     /// </summary>
     private string ReportPath { get; set; }
-
-    /// <summary>
-    /// When the scan started.
-    /// </summary>
-    private DateTimeOffset? Started { get; set; }
 
     /// <summary>
     /// Constructor.
@@ -182,28 +181,15 @@ internal class Scanner
             .Distinct()
             .ToList();
 
-        await this.WriteReport(
+        await Tools.WriteReport(
             Path.Combine(this.ReportPath, "scan.json"),
-            new
-            {
-                this.Started,
-                this.Ended,
-                this.Duration,
+            new ScanReport(this));
 
-                AbortedByUser = !this.ProcessQueue,
-
-                StatusCodesCount = statusCodes.ToDictionary(
-                    n => n,
-                    n => this.Queue.Count(m => m.Response?.StatusCode == n)),
-
-                FailedCount = this.Queue.Count(n => n.Response is null)
-            });
-
-        await this.WriteReport(
+        await Tools.WriteReport(
             Path.Combine(this.ReportPath, "queue.json"),
             this.Queue);
 
-        await this.WriteReport(
+        await Tools.WriteReport(
             Path.Combine(this.ReportPath, "config.json"),
             this.Config);
 
@@ -283,92 +269,6 @@ internal class Scanner
     }
 
     /// <summary>
-    /// Get status text for code.
-    /// </summary>
-    /// <param name="statusCode">Status code.</param>
-    /// <returns>Status text.</returns>
-    private string? GetStatusText(int statusCode)
-    {
-        return statusCode switch
-        {
-            // Information.
-            100 => "Continue",
-            101 => "Switching",
-            102 => "Processing",
-            103 => "Early Hints",
-
-            // Success.
-            200 => "Ok",
-            201 => "Created",
-            202 => "Accepted",
-            203 => "Non-Authoritive Information",
-            204 => "No Content",
-            205 => "Reset Content",
-            206 => "Partial Content",
-            207 => "Multi-Status",
-            208 => "Already Reported",
-            226 => "IM Used",
-
-            // Redirection.
-            300 => "Multiple Choices",
-            301 => "Moved Permanently",
-            302 => "Found",
-            303 => "See Other",
-            304 => "Not Modified",
-            305 => "Use Proxy",
-            307 => "Temporary Redirect",
-            308 => "Permanent Redirect",
-
-            // Client errors.
-            400 => "Bad Request",
-            401 => "Unauthorized",
-            402 => "Payment Required",
-            403 => "Forbidden",
-            404 => "Not Found",
-            405 => "Method Not Allowed",
-            406 => "Not Acceptable",
-            407 => "Proxy Authentication Required",
-            408 => "Request Timeout",
-            409 => "Conflict",
-            410 => "Gone",
-            411 => "Length Required",
-            412 => "Precondition Failed",
-            413 => "Payload Too Large",
-            414 => "URI Too Long",
-            415 => "Unsupported Media Type",
-            416 => "Range Not Satisfiable",
-            417 => "Expectation Failed",
-            418 => "I'm a teapot",
-            421 => "Misdirected Request",
-            422 => "Unprocessable Content",
-            423 => "Locked",
-            424 => "Failed Dependancy",
-            425 => "Too Early",
-            526 => "Upgrade Required",
-            428 => "Precondition Required",
-            429 => "Too Many Requests",
-            431 => "Request Header Fields Too Large",
-            451 => "Unavailable For Legal Reasons",
-
-            // Server errors.
-            500 => "Internal Server Error",
-            501 => "Not Implemented",
-            502 => "Bad Gateway",
-            503 => "Service Unavailable",
-            504 => "Gateway Timeout",
-            505 => "HTTP Version Not Supported",
-            506 => "Variant Also Negotiates",
-            507 => "Insufficient Storage",
-            508 => "Loop Detected",
-            510 => "Not Extended",
-            511 => "Network Authentication Required",
-
-            // Unknown.
-            _ => null
-        };
-    }
-
-    /// <summary>
     /// Perform a request using HttpClient.
     /// </summary>
     /// <param name="item">Queue item.</param>
@@ -414,7 +314,7 @@ internal class Scanner
                 Headers = res.Headers.ToDictionary(n => n.Key, n => n.Value.First().ToString()),
                 ResponseTime = rt,
                 StatusCode = (int)res.StatusCode,
-                StatusDescription = this.GetStatusText((int)res.StatusCode)
+                StatusDescription = Tools.GetStatusText((int)res.StatusCode)
             };
         }
         catch (TimeoutException)
@@ -470,7 +370,7 @@ internal class Scanner
                 StatusCode = res.Status,
                 StatusDescription = !string.IsNullOrWhiteSpace(res.StatusText)
                     ? res.StatusText
-                    : this.GetStatusText(res.Status),
+                    : Tools.GetStatusText(res.Status),
                 Telemetry = res.Request.Timing
             };
 
@@ -573,32 +473,5 @@ internal class Scanner
         objects.Add(Environment.NewLine);
 
         ConsoleEx.Write(objects.ToArray());
-    }
-
-    /// <summary>
-    /// Write data to disk.
-    /// </summary>
-    /// <param name="path">Path to save to.</param>
-    /// <param name="data">Data to save.</param>
-    private async Task WriteReport(
-        string path,
-        object data)
-    {
-        try
-        {
-            using var fs = File.OpenWrite(path);
-
-            await JsonSerializer.SerializeAsync(
-                fs,
-                data,
-                new JsonSerializerOptions
-                {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
-        }
-        catch (Exception ex)
-        {
-            ConsoleEx.WriteException(ex);
-        }
     }
 }
