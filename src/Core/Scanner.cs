@@ -153,6 +153,11 @@ internal class Scanner
                 Directory.CreateDirectory(this.ReportPath);
             }
 
+            if (this.Config.Devices?.Any(n => n.WriteBodyToDisk) is true)
+            {
+                Directory.CreateDirectory(Path.Combine(this.ReportPath, "screenshots"));
+            };
+
             return true;
         }
         catch (Exception ex)
@@ -348,6 +353,18 @@ internal class Scanner
                 StatusCode = (int)res.StatusCode,
                 StatusDescription = Tools.GetStatusText((int)res.StatusCode)
             };
+
+            var body = await res.Content.ReadAsByteArrayAsync();
+
+            if (body is not null)
+            {
+                qr.ContentLength = body.Length;
+
+                await this.WriteBodyToDisk(
+                    item,
+                    device,
+                    body);
+            }
         }
         catch (TimeoutException)
         {
@@ -433,9 +450,14 @@ internal class Scanner
 
             var body = await res.BodyAsync();
 
-            if (body != null)
+            if (body is not null)
             {
                 qr.ContentLength = body.Length;
+
+                await this.WriteBodyToDisk(
+                    item,
+                    device,
+                    body);
             }
 
             await this.ExtractLinks(item, device);
@@ -489,6 +511,31 @@ internal class Scanner
 
         item.Ended = DateTimeOffset.Now;
         item.Duration = item.Ended - item.Started;
+    }
+
+    /// <summary>
+    /// Write bytes to disk.
+    /// </summary>
+    /// <param name="item">Queue item.</param>
+    /// <param name="device">Rendering device.</param>
+    /// <param name="data">Bytes to write.</param>
+    private async Task WriteBodyToDisk(QueueItem item, Device device, byte[] data)
+    {
+        try
+        {
+            var path = Path.Combine(
+                this.ReportPath,
+                "screenshots",
+                $"item-{item.Id}-device-{device.Id}.bytes");
+
+            await File.WriteAllBytesAsync(
+                path,
+                data);
+        }
+        catch (Exception ex)
+        {
+            ConsoleEx.WriteException(ex);
+        }
     }
 
     /// <summary>

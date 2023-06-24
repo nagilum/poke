@@ -27,6 +27,11 @@ internal class Device
     public PageGotoOptions? PageGotoOptions { get; set; }
 
     /// <summary>
+    /// Whether to write bytes of body to disk.
+    /// </summary>
+    public bool WriteBodyToDisk { get; set; }
+
+    /// <summary>
     /// Playwright browser.
     /// </summary>
     [JsonIgnore]
