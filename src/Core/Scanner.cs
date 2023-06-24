@@ -394,6 +394,21 @@ internal class Scanner
             }
 
             var start = DateTimeOffset.Now;
+            var logs = new List<ConsoleMessage>();
+
+            device.Page.Console += (_, msg) =>
+            {
+                var cm = new ConsoleMessage
+                {
+                    Arguments = msg.Args
+                        .Select(n => n.ToString())
+                        .ToArray(),
+                    Text = msg.Text,
+                    Type = msg.Type
+                };
+
+                logs.Add(cm);
+            };
 
             var res = await device.Page.GotoAsync(item.Url.ToString(), pgo) ??
                 throw new Exception(
@@ -403,6 +418,7 @@ internal class Scanner
 
             qr = new()
             {
+                ConsoleMessages = logs,
                 DeviceId = device.Id,
                 DeviceName = device.Name,
                 Headers = await res.AllHeadersAsync(),

@@ -5,6 +5,11 @@ namespace Poke.Models;
 internal class QueueResponse
 {
     /// <summary>
+    /// Console messages.
+    /// </summary>
+    public List<ConsoleMessage>? ConsoleMessages { get; set; }
+
+    /// <summary>
     /// Body size.
     /// </summary>
     public int? ContentLength { get; set; }
