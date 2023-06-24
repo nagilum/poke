@@ -22,6 +22,11 @@ internal class Device
     public BrowserNewPageOptions? BrowserNewPageOptions { get; set; }
 
     /// <summary>
+    /// Page go-to options.
+    /// </summary>
+    public PageGotoOptions? PageGotoOptions { get; set; }
+
+    /// <summary>
     /// Playwright browser.
     /// </summary>
     [JsonIgnore]

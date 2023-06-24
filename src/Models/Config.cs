@@ -13,11 +13,6 @@ internal class Config
     public BrowserTypeLaunchOptions? BrowserTypeLaunchOptions { get; set; }
 
     /// <summary>
-    /// Page go-to options.
-    /// </summary>
-    public PageGotoOptions? PageGotoOptions { get; set; }
-
-    /// <summary>
     /// Rendering devices.
     /// </summary>
     public Device[] Devices { get; set; } = Array.Empty<Device>();

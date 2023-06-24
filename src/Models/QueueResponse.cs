@@ -15,6 +15,11 @@ internal class QueueResponse
     public Guid? DeviceId { get; set; }
 
     /// <summary>
+    /// Device name.
+    /// </summary>
+    public string? DeviceName { get; set; }
+
+    /// <summary>
     /// Response headers.
     /// </summary>
     public Dictionary<string, string>? Headers { get; set; }

@@ -111,7 +111,10 @@ internal static class Program
             }
         }
 
-        config ??= new();
+        config ??= new()
+        {
+            BrowserTypeLaunchOptions = new()
+        };
 
         if (config.Devices?.Length == 0)
         {
@@ -128,6 +131,7 @@ internal static class Program
                             Width = 1920
                         }
                     },
+                    PageGotoOptions = new(),
                     RenderingEngine = RenderingEngine.Chromium
                 }
             };

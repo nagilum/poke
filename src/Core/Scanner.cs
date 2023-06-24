@@ -341,6 +341,8 @@ internal class Scanner
 
             qr = new()
             {
+                DeviceId = device.Id,
+                DeviceName = device.Name,
                 Headers = res.Headers.ToDictionary(n => n.Key, n => n.Value.First().ToString()),
                 ResponseTime = rt,
                 StatusCode = (int)res.StatusCode,
@@ -377,7 +379,7 @@ internal class Scanner
 
         try
         {
-            var pgo = this.Config.PageGotoOptions;
+            var pgo = device.PageGotoOptions;
 
             if (item.FoundOn.HasValue)
             {
@@ -402,6 +404,7 @@ internal class Scanner
             qr = new()
             {
                 DeviceId = device.Id,
+                DeviceName = device.Name,
                 Headers = await res.AllHeadersAsync(),
                 ResponseTime = rt,
                 StatusCode = res.Status,
