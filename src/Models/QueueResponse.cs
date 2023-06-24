@@ -25,6 +25,11 @@ internal class QueueResponse
     public Dictionary<string, string>? Headers { get; set; }
 
     /// <summary>
+    /// Returns SSL and other security information.
+    /// </summary>
+    public ResponseSecurityDetailsResult? ResponseSecurityDetailsResult { get; set; }
+
+    /// <summary>
     /// Response time.
     /// </summary>
     public TimeSpan? ResponseTime { get; set; }

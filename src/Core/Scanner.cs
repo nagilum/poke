@@ -406,6 +406,7 @@ internal class Scanner
                 DeviceId = device.Id,
                 DeviceName = device.Name,
                 Headers = await res.AllHeadersAsync(),
+                ResponseSecurityDetailsResult = await res.SecurityDetailsAsync(),
                 ResponseTime = rt,
                 StatusCode = res.Status,
                 StatusDescription = !string.IsNullOrWhiteSpace(res.StatusText)
