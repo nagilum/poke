@@ -81,6 +81,28 @@ internal class Scanner
     }
 
     /// <summary>
+    /// Get a list of all status codes.
+    /// </summary>
+    /// <returns>List of status codes.</returns>
+    public List<int> GetStatusCodes()
+    {
+        var statusCodes = new List<int>();
+
+        foreach (var item in this.Queue)
+        {
+            statusCodes.AddRange(
+                item.Responses
+                    .Where(n => n.StatusCode.HasValue)
+                    .Select(n => n.StatusCode!.Value));
+        }
+
+        return statusCodes
+            .OrderBy(n => n)
+            .Distinct()
+            .ToList();
+    }
+
+    /// <summary>
     /// Setup required components.
     /// </summary>
     public async Task<bool> Setup()
@@ -122,6 +144,12 @@ internal class Scanner
 
             if (!Directory.Exists(this.ReportPath))
             {
+                ConsoleEx.Write(
+                    "Creating report path ",
+                    ConsoleColor.Yellow,
+                    this.ReportPath,
+                    Environment.NewLine);
+
                 Directory.CreateDirectory(this.ReportPath);
             }
 
@@ -181,21 +209,6 @@ internal class Scanner
     /// </summary>
     public async Task WriteReports()
     {
-        var statusCodes = new List<int>();
-
-        foreach (var item in this.Queue)
-        {
-            statusCodes.AddRange(
-                item.Responses
-                    .Where(n => n.StatusCode.HasValue)
-                    .Select(n => n.StatusCode!.Value));
-        }
-
-        statusCodes = statusCodes
-            .OrderBy(n => n)
-            .Distinct()
-            .ToList();
-
         await Tools.WriteReport(
             Path.Combine(this.ReportPath, "scan.json"),
             new ScanReport(this, this.Config));

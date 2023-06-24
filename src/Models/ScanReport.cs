@@ -48,20 +48,8 @@ internal class ScanReport
             .ToList();
 
         // Add URLs for all status codes except 200.
-        var statusCodes = new List<int>();
-
-        foreach (var item in scanner.Queue)
-        {
-            statusCodes.AddRange(
-                item.Responses
-                    .Where(n => n.StatusCode.HasValue)
-                    .Select(n => n.StatusCode!.Value));
-        }
-
-        statusCodes = statusCodes
+        var statusCodes = scanner.GetStatusCodes()
             .Where(n => n is not 200)
-            .OrderBy(n => n)
-            .Distinct()
             .ToList();
 
         foreach (var code in statusCodes)
