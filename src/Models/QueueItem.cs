@@ -50,9 +50,9 @@ internal class QueueItem
     public QueueItemType Type { get; set; }
 
     /// <summary>
-    /// Response data.
+    /// Responses.
     /// </summary>
-    public QueueResponse? Response { get; set; }
+    public List<QueueResponse> Responses { get; set; } = new();
 
     /// <summary>
     /// URL to scan.

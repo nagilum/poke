@@ -33,33 +33,52 @@ internal class ScanReport
     /// Constructor.
     /// </summary>
     /// <param name="scanner">Scanner data.</param>
-    public ScanReport(Scanner scanner)
+    /// <param name="config">Config.</param>
+    public ScanReport(Scanner scanner, Config config)
     {
         this.AbortedByUser = !scanner.ProcessQueue;
         this.Duration = scanner.Ended!.Value - scanner.Started!.Value;
         this.Ended = scanner.Ended!.Value;
         this.Started = scanner.Started!.Value;
 
+        // Add URLs that failed on at least 1 device.
         this.Failures["failed"] = scanner.Queue
-            .Where(n => n.Response is null)
+            .Where(n => n.Responses.Count != config.Devices.Length)
             .Select(n => n.Url.ToString())
             .ToList();
 
-        var statusCodes = scanner.Queue
-            .Where(n => n.Response?.StatusCode is not null &&
-                        n.Response.StatusCode is not 200)
-            .Select(n => n.Response!.StatusCode!.Value)
+        // Add URLs for all status codes except 200.
+        var statusCodes = new List<int>();
+
+        foreach (var item in scanner.Queue)
+        {
+            statusCodes.AddRange(
+                item.Responses
+                    .Where(n => n.StatusCode.HasValue)
+                    .Select(n => n.StatusCode!.Value));
+        }
+
+        statusCodes = statusCodes
+            .Where(n => n is not 200)
             .OrderBy(n => n)
             .Distinct()
             .ToList();
 
-        foreach (var sc in statusCodes)
+        foreach (var code in statusCodes)
         {
-            this.Failures[sc.ToString()] = scanner.Queue
-                .Where(n => n.Response is not null &&
-                            n.Response.StatusCode == sc)
-                .Select(n => n.Url.ToString())
-                .ToList();
+            var urls = new List<string>();
+
+            foreach (var item in scanner.Queue)
+            {
+                if (item.Responses
+                    .Where(n => n.StatusCode.HasValue)
+                    .Any(n => n.StatusCode!.Value == code))
+                {
+                    urls.Add(item.Url.ToString());
+                }
+            }
+
+            this.Failures[code.ToString()] = urls;
         }
     }
 }

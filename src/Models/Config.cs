@@ -8,11 +8,6 @@ namespace Poke.Models;
 internal class Config
 {
     /// <summary>
-    /// New page options.
-    /// </summary>
-    public BrowserNewPageOptions? BrowserNewPageOptions { get; set; }
-
-    /// <summary>
     /// Browser launch options.
     /// </summary>
     public BrowserTypeLaunchOptions? BrowserTypeLaunchOptions { get; set; }
@@ -23,14 +18,14 @@ internal class Config
     public PageGotoOptions? PageGotoOptions { get; set; }
 
     /// <summary>
+    /// Rendering devices.
+    /// </summary>
+    public Device[] Devices { get; set; } = Array.Empty<Device>();
+
+    /// <summary>
     /// Where to store the report after scanning. Defaults to current directory.
     /// </summary>
     public string ReportPath { get; set; } = Directory.GetCurrentDirectory();
-
-    /// <summary>
-    /// Which rendering engine to use.
-    /// </summary>
-    public RenderingEngine RenderingEngine { get; set; } = RenderingEngine.Chromium;
 
     /// <summary>
     /// Check to see if config is valid.

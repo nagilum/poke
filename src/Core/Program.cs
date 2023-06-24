@@ -111,6 +111,28 @@ internal static class Program
             }
         }
 
+        config ??= new();
+
+        if (config.Devices?.Length == 0)
+        {
+            config.Devices = new[]
+            {
+                new Device
+                {
+                    Name = "chromium-1920x1280",
+                    BrowserNewPageOptions = new()
+                    {
+                        ScreenSize = new()
+                        {
+                            Height = 1280,
+                            Width = 1920
+                        }
+                    },
+                    RenderingEngine = RenderingEngine.Chromium
+                }
+            };
+        }
+
         return new(uri, config ?? new Config());
     }
 

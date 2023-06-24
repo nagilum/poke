@@ -47,11 +47,6 @@ internal class Scanner
     private int Index { get; set; } = -1;
 
     /// <summary>
-    /// Playwright page.
-    /// </summary>
-    private IPage Page { get; set; } = null!;
-
-    /// <summary>
     /// Report path.
     /// </summary>
     private string ReportPath { get; set; }
@@ -103,15 +98,27 @@ internal class Scanner
                 });
 
             var instance = await Playwright.CreateAsync();
-            var browser = this.Config.RenderingEngine switch
-            {
-                RenderingEngine.Chromium => await instance.Chromium.LaunchAsync(this.Config.BrowserTypeLaunchOptions),
-                RenderingEngine.Firefox => await instance.Firefox.LaunchAsync(this.Config.BrowserTypeLaunchOptions),
-                RenderingEngine.Webkit => await instance.Webkit.LaunchAsync(this.Config.BrowserTypeLaunchOptions),
-                _ => throw new NotImplementedException()
-            };
 
-            this.Page = await browser.NewPageAsync(this.Config.BrowserNewPageOptions);
+            foreach (var device in this.Config.Devices)
+            {
+                ConsoleEx.Write(
+                    "Setting up rendering device for ",
+                    ConsoleColor.Yellow,
+                    device.Name ?? device.Id.ToString(),
+                    ConsoleColorEx.ResetColor,
+                    "..",
+                    Environment.NewLine);
+
+                device.Browser = device.RenderingEngine switch
+                {
+                    RenderingEngine.Chromium => await instance.Chromium.LaunchAsync(this.Config.BrowserTypeLaunchOptions),
+                    RenderingEngine.Firefox => await instance.Firefox.LaunchAsync(this.Config.BrowserTypeLaunchOptions),
+                    RenderingEngine.Webkit => await instance.Webkit.LaunchAsync(this.Config.BrowserTypeLaunchOptions),
+                    _ => throw new NotImplementedException()
+                };
+
+                device.Page = await device.Browser.NewPageAsync(device.BrowserNewPageOptions);
+            }
 
             if (!Directory.Exists(this.ReportPath))
             {
@@ -174,16 +181,24 @@ internal class Scanner
     /// </summary>
     public async Task WriteReports()
     {
-        var statusCodes = this.Queue
-            .Where(n => n.Response?.StatusCode is not null)
-            .Select(n => n.Response!.StatusCode!.Value)
+        var statusCodes = new List<int>();
+
+        foreach (var item in this.Queue)
+        {
+            statusCodes.AddRange(
+                item.Responses
+                    .Where(n => n.StatusCode.HasValue)
+                    .Select(n => n.StatusCode!.Value));
+        }
+
+        statusCodes = statusCodes
             .OrderBy(n => n)
             .Distinct()
             .ToList();
 
         await Tools.WriteReport(
             Path.Combine(this.ReportPath, "scan.json"),
-            new ScanReport(this));
+            new ScanReport(this, this.Config));
 
         await Tools.WriteReport(
             Path.Combine(this.ReportPath, "queue.json"),
@@ -204,7 +219,8 @@ internal class Scanner
     /// Extract links from page.
     /// </summary>
     /// <param name="item">Queue item.</param>
-    private async Task ExtractLinks(QueueItem item)
+    /// <param name="device">Rendering device.</param>
+    private async Task ExtractLinks(QueueItem item, Device device)
     {
         var dict = new Dictionary<string, string>
         {
@@ -220,7 +236,7 @@ internal class Scanner
         {
             try
             {
-                var links = this.Page.Locator($"//{tag}[@{attr}]");
+                var links = device.Page.Locator($"//{tag}[@{attr}]");
                 var count = await links.CountAsync();
 
                 for (var i = 0; i < count; i++)
@@ -272,7 +288,8 @@ internal class Scanner
     /// Perform a request using HttpClient.
     /// </summary>
     /// <param name="item">Queue item.</param>
-    private async Task PerformHttpClientRequest(QueueItem item)
+    /// <param name="device">Rendering device.</param>
+    private async Task PerformHttpClientRequest(QueueItem item, Device device)
     {
         QueueResponse? qr = null;
 
@@ -299,7 +316,7 @@ internal class Scanner
 
             msg.Headers.TryAddWithoutValidation(
                 "user-agent",
-                this.Config.BrowserNewPageOptions?.UserAgent ?? Program.AppUserAgent);
+                device.BrowserNewPageOptions?.UserAgent ?? Program.AppUserAgent);
 
             var start = DateTimeOffset.Now;
 
@@ -328,14 +345,20 @@ internal class Scanner
             item.Errors.Add(ex.ToString());
         }
 
-        item.Response = qr;
+        this.WriteLog(item, qr, device);
+
+        if (qr is not null)
+        {
+            item.Responses.Add(qr);
+        }
     }
 
     /// <summary>
     /// Perform a request using Playwright and do standard analysis.
     /// </summary>
     /// <param name="item">Queue item.</param>
-    private async Task PerformPlaywrightRequest(QueueItem item)
+    /// <param name="device">Rendering device.</param>
+    private async Task PerformPlaywrightRequest(QueueItem item, Device device)
     {
         QueueResponse? qr = null;
 
@@ -357,7 +380,7 @@ internal class Scanner
 
             var start = DateTimeOffset.Now;
 
-            var res = await this.Page.GotoAsync(item.Url.ToString(), pgo) ??
+            var res = await device.Page.GotoAsync(item.Url.ToString(), pgo) ??
                 throw new Exception(
                     $"Unable to get a response from {item.Url}");
 
@@ -365,6 +388,7 @@ internal class Scanner
 
             qr = new()
             {
+                DeviceId = device.Id,
                 Headers = await res.AllHeadersAsync(),
                 ResponseTime = rt,
                 StatusCode = res.Status,
@@ -381,7 +405,7 @@ internal class Scanner
                 qr.ContentLength = body.Length;
             }
 
-            await this.ExtractLinks(item);
+            await this.ExtractLinks(item, device);
         }
         catch (TimeoutException)
         {
@@ -394,7 +418,12 @@ internal class Scanner
             item.Errors.Add(ex.ToString());
         }
 
-        item.Response = qr;
+        this.WriteLog(item, qr, device);
+
+        if (qr is not null)
+        {
+            item.Responses.Add(qr);
+        }
     }
 
     /// <summary>
@@ -409,25 +438,33 @@ internal class Scanner
         {
             case QueueItemType.Asset:
             case QueueItemType.External:
-                await this.PerformHttpClientRequest(item);
+                foreach (var device in this.Config.Devices)
+                {
+                    await this.PerformHttpClientRequest(item, device);
+                }
+                    
                 break;
 
             case QueueItemType.Resource:
-                await this.PerformPlaywrightRequest(item);
+                foreach (var device in this.Config.Devices)
+                {
+                    await this.PerformPlaywrightRequest(item, device);
+                }
+
                 break;
         }
 
         item.Ended = DateTimeOffset.Now;
         item.Duration = item.Ended - item.Started;
-
-        this.WriteLog(item);
     }
 
     /// <summary>
     /// Write log entry to console.
     /// </summary>
     /// <param name="item">Queue item.</param>
-    private void WriteLog(QueueItem item)
+    /// <param name="res">Response.</param>
+    /// <param name="device">Rendering device.</param>
+    private void WriteLog(QueueItem item, QueueResponse? res, Device device)
     {
         var objects = new List<object>
         {
@@ -439,12 +476,16 @@ internal class Scanner
             ConsoleColor.Yellow,
             this.Queue.Count,
             ConsoleColorEx.ResetColor,
-            "] ["
+            "] [",
+            ConsoleColor.Yellow,
+            device.Name ?? device.Id.ToString(),
+            ConsoleColorEx.ResetColor,
+            "] [",
         };
 
-        if (item.Response?.StatusCode.HasValue is true)
+        if (res?.StatusCode.HasValue is true)
         {
-            var sc = item.Response.StatusCode.Value.ToString();
+            var sc = res.StatusCode.Value.ToString();
 
             if (sc.StartsWith("3"))
             {
